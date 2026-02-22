@@ -1,4 +1,4 @@
-# ♻️ ScrapIQ - Circular Economy Marketplace (MOLE)
+# ♻️ MOLE - Circular Economy Marketplace (MOLE)
 
 > **An AI-powered B2B marketplace engineered to intelligently match industrial waste streams with verified buyers, promoting a sustainable circular economy.**
 
@@ -9,7 +9,7 @@
 
 ## 📖 Overview
 
-**ScrapIQ** (formerly MOLE / CirculaNet) is a modern, enterprise-grade SaaS platform built to solve the industrial waste problem. Instead of letting valuable byproducts and industrial scrap go to landfills, ScrapIQ bridges the gap between waste generators and recyclers.
+**MOLE** (formerly MOLE / CirculaNet) is a modern, enterprise-grade SaaS platform built to solve the industrial waste problem. Instead of letting valuable byproducts and industrial scrap go to landfills, MOLE bridges the gap between waste generators and recyclers.
 
 Our intelligent **matching engine** automatically ranks and connects sellers with buyers based on physical location proximity, material compatibility, and chemical composition—turning waste into revenue.
 
