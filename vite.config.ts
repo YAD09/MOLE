@@ -7,5 +7,5 @@ export default defineConfig({
     // TODO: Replace 'repo-name' with your actual GitHub repository name
     // If you are deploying to https://<USERNAME>.github.io/<REPO_NAME>/, set base to '/<REPO_NAME>/'
     // If you are deploying to https://<USERNAME>.github.io/, set base to '/'
-    base: '/MOLE/', 
+    base: '/',
 });

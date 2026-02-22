@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Lightbulb, Building2, Package, Search,
-    ChevronLeft, ChevronRight, MessageSquare, Send, X, AlertCircle, Loader
+    ChevronLeft, ChevronRight, MessageSquare
 } from 'lucide-react';
-import { getAllWasteListings, sendOffer, type WasteListingPublic } from '../lib/db';
+import { getAllWasteListings, type WasteListingPublic } from '../lib/db';
 
 const hazardColor = (h: string) =>
     h === 'non-hazardous'
