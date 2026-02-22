@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, CSSProperties } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     ArrowLeft, ArrowRight, Cpu, Lock, Mail, Leaf, CheckCircle2,
     Globe, Building2, MapPin, ChevronDown, Eye, EyeOff, Recycle,
-    Zap, Sparkles, Trash2, PackageCheck, Settings2, Layers,
+    Zap, Sparkles, Trash2, PackageCheck, Settings2,
     AlertCircle, ShieldCheck, RefreshCcw, Orbit
 } from 'lucide-react';
 
@@ -93,9 +93,9 @@ const CircularNetworkSVG = () => (
 
 /* ─────────────────────── Chip Selector Component ─────────────────────── */
 const ChipSelector = ({
-    options, selected, onToggle, icon: Icon
+    options, selected, onToggle
 }: {
-    options: string[]; selected: string[]; onToggle: (val: string) => void; icon: React.ElementType;
+    options: string[]; selected: string[]; onToggle: (val: string) => void;
 }) => (
     <div className="flex flex-wrap gap-2">
         {options.map((opt) => {
@@ -161,7 +161,7 @@ const AuthPage = () => {
     const [captcha, setCaptcha] = useState({ question: '', answer: '' });
     const [userCaptcha, setUserCaptcha] = useState('');
     const [authError, setAuthError] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [, setIsSubmitting] = useState(false);
 
     const { login, signup, resetPassword } = useAuth();
     const navigate = useNavigate();
@@ -383,18 +383,9 @@ const AuthPage = () => {
     const panel = getPanelContent();
 
     /* ─── BUTTON STYLE ─── */
-    const primaryBtnStyle: CSSProperties = {
-        backgroundColor: '#1C1C1E',
-        color: '#FFFFFF',
-    };
-    const primaryBtnHoverStyle: CSSProperties = {
-        backgroundColor: '#3A3A3C',
-    };
 
-    /* ─── INPUT CLASS ─── */
-    const inputClass = `w-full bg-white border border-surface-200 rounded-xl px-4 py-3 text-[15px] font-medium
-        text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10
-        focus:border-brand-500 transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]`;
+
+
 
     const inputWithIconClass = `w-full bg-white border border-surface-200 rounded-xl pl-11 pr-4 py-3 text-[15px]
         font-medium text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-4
@@ -903,7 +894,6 @@ const AuthPage = () => {
                                         options={WASTE_TYPES}
                                         selected={wasteTypes}
                                         onToggle={(v) => toggleChip(wasteTypes, setWasteTypes, v)}
-                                        icon={Recycle}
                                     />
                                 </div>
 
@@ -918,7 +908,6 @@ const AuthPage = () => {
                                         options={MATERIAL_NEEDS}
                                         selected={materialNeeds}
                                         onToggle={(v) => toggleChip(materialNeeds, setMaterialNeeds, v)}
-                                        icon={Layers}
                                     />
                                 </div>
 
@@ -933,7 +922,6 @@ const AuthPage = () => {
                                         options={CAPABILITIES}
                                         selected={capabilities}
                                         onToggle={(v) => toggleChip(capabilities, setCapabilities, v)}
-                                        icon={Settings2}
                                     />
                                 </div>
                             </div>

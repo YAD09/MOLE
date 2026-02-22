@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    FileText, Download, Calendar, Clock, ChevronRight, Filter,
+    FileText, Download, Calendar, Clock,
     BarChart3, Leaf, ShieldCheck, TrendingUp, Plus, Search,
     CheckCircle2, AlertCircle, Eye, Share2, Printer, Loader, RefreshCw
 } from 'lucide-react';
@@ -450,7 +450,7 @@ const Reports = () => {
                                     No scheduled reports yet. Click <strong>+ Add</strong> to set one up.
                                 </p>
                             )}
-                            {!loading && scheduled.map((sr, i) => (
+                            {!loading && scheduled.map((sr) => (
                                 <div key={sr.id} className="p-3 rounded-xl bg-surface-50 hover:bg-white border border-transparent hover:border-surface-200 transition-all cursor-pointer group">
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-[12px] font-bold text-surface-800 group-hover:text-brand-600 transition-colors">{sr.name}</span>

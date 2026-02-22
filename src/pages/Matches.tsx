@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-    Leaf, DollarSign, Truck, MapPin, Target, Zap, Activity, ArrowRight,
-    ShieldCheck, Sparkles, CheckCircle2, AlertTriangle, Eye, Package,
-    Factory, Clock, ChevronRight, ArrowUpRight, Recycle, Search,
-    BarChart3, TrendingUp, X, Layers, Loader
+    Leaf, DollarSign, MapPin, Target, Zap, Activity, ArrowRight,
+    Sparkles, CheckCircle2, AlertTriangle, Eye, Package,
+    Factory, Clock, ChevronRight, Recycle, Search,
+    BarChart3, TrendingUp, Layers, Loader
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -28,13 +28,7 @@ const ScoreRing = ({ score, size = 60, strokeWidth = 5 }: { score: number; size?
     );
 };
 
-/* ─── Status Config ─── */
-const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-    active: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Active' },
-    matched: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'Matched' },
-    pending: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', label: 'Pending AI' },
-    accepted: { bg: 'bg-brand-50 border-brand-200', text: 'text-brand-700', label: 'Accepted' },
-};
+
 
 /* ═══════════════════════════════════════════════════
    MAIN MATCHES COMPONENT

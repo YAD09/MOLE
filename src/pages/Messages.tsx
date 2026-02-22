@@ -1,18 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
-    Search, Send, Building2, MoreVertical,
+    Search, Send, Building2,
     Loader, MessageSquare, Clock,
-    CheckCircle2, Info, ArrowLeft, Check, CheckCheck, X
+    CheckCircle2, ArrowLeft, Check, CheckCheck, X, FileEdit
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
-    getConversations, getConversationMessages, sendMessage, markMessagesAsRead,
+    getConversations, getConversationMessages, sendMessage, markMessagesAsRead, finalizeDeal, saveDraftDeal, getDraftDeal,
     type Conversation, type Message
 } from '../lib/db';
 
 const Messages = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const partnerIdParam = searchParams.get('partnerId');
 
     const [loading, setLoading] = useState(true);
@@ -25,9 +26,20 @@ const Messages = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isChatStarted, setIsChatStarted] = useState(false);
 
-    // Deal Done Modal State
+    // Deal/Draft State
+    const [hasDraft, setHasDraft] = useState(false);
+    const [draftId, setDraftId] = useState<string | null>(null);
+    const [showDraftModal, setShowDraftModal] = useState(false);
     const [showDealModal, setShowDealModal] = useState(false);
-    const [dealForm, setDealForm] = useState({ material: '', amount: '', price: '', notes: '' });
+    const [dealForm, setDealForm] = useState<{
+        material: string;
+        amount: string;
+        price: string;
+        notes: string;
+        role: 'seller' | 'buyer';
+    }>({ material: '', amount: '', price: '', notes: '', role: 'seller' });
+    const [isFinalizing, setIsFinalizing] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
 
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -70,7 +82,7 @@ const Messages = () => {
         init();
     }, [partnerIdParam]);
 
-    // Load messages when partner changes
+    // Load messages and draft when partner changes
     useEffect(() => {
         setIsChatStarted(false);
         if (!selectedPartner) return;
@@ -84,6 +96,27 @@ const Messages = () => {
             setConversations(prev => prev.map(c =>
                 c.partner_id === selectedPartner.partner_id ? { ...c, unread_count: 0 } : c
             ));
+
+            // Load Draft Deal if exists
+            const draft = await getDraftDeal(selectedPartner.partner_id);
+            if (draft) {
+                setHasDraft(true);
+                setDraftId(draft.id);
+                // Pre-fill form
+                const { data: { user } } = await supabase.auth.getUser();
+                const amISeller = draft.seller_id === user?.id;
+                setDealForm({
+                    material: draft.material,
+                    amount: draft.amount.toString(),
+                    price: draft.price.toString(),
+                    notes: draft.notes || '',
+                    role: amISeller ? 'seller' : 'buyer'
+                });
+            } else {
+                setHasDraft(false);
+                setDraftId(null);
+                setDealForm({ material: '', amount: '', price: '', notes: '', role: 'seller' });
+            }
         };
         loadMsgs();
 
@@ -314,12 +347,21 @@ const Messages = () => {
                                         Let's Talk
                                     </button>
                                 ) : (
-                                    <button
-                                        onClick={() => setShowDealModal(true)}
-                                        className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-bold transition-colors shadow-sm shadow-brand-500/20 flex items-center gap-1.5"
-                                    >
-                                        <CheckCircle2 size={14} /> Deal Done
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setShowDraftModal(true)}
+                                            className="px-4 py-2 bg-white border border-brand-200 text-brand-600 hover:bg-brand-50 rounded-xl text-[12px] font-bold transition-colors flex items-center gap-1.5"
+                                        >
+                                            <FileEdit size={14} /> {hasDraft ? 'Edit Draft' : 'Draft Deal'}
+                                        </button>
+                                        <button
+                                            disabled={!hasDraft}
+                                            onClick={() => setShowDealModal(true)}
+                                            className={`px-4 py-2 text-white rounded-xl text-[12px] font-bold transition-colors shadow-sm shadow-brand-500/20 flex items-center gap-1.5 ${!hasDraft ? 'bg-surface-300 cursor-not-allowed opacity-70' : 'bg-brand-500 hover:bg-brand-600'}`}
+                                        >
+                                            <CheckCircle2 size={14} /> Deal Done
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                             <form onSubmit={handleSend} className="relative flex items-center gap-3">
@@ -376,6 +418,87 @@ const Messages = () => {
                 )}
             </div>
 
+            {showDraftModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/40 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-surface-200/60 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center bg-surface-50">
+                            <h3 className="text-[16px] font-bold text-surface-900">{hasDraft ? 'Edit Draft Deal' : 'Draft New Deal'}</h3>
+                            <button onClick={() => setShowDraftModal(false)} className="text-surface-400 hover:text-surface-600 transition-colors">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!selectedPartner) return;
+
+                            setIsSavingDraft(true);
+                            const { data, error } = await saveDraftDeal({
+                                partner_id: selectedPartner.partner_id,
+                                role: dealForm.role,
+                                material: dealForm.material,
+                                amount: parseFloat(dealForm.amount) || 0,
+                                price: parseFloat(dealForm.price.replace(/[^0-9.]/g, '')) || 0,
+                                notes: dealForm.notes,
+                                existing_id: draftId || undefined
+                            });
+
+                            if (data && !error) {
+                                setHasDraft(true);
+                                setDraftId(data.id);
+                                setShowDraftModal(false);
+                            }
+
+                            setIsSavingDraft(false);
+                        }} className="p-6 space-y-4">
+
+                            {/* Role Selector */}
+                            <div className="grid grid-cols-2 gap-3 p-1 bg-surface-100 rounded-xl mb-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setDealForm(prev => ({ ...prev, role: 'seller' }))}
+                                    className={`py-2 text-[13px] font-bold rounded-lg transition-all ${dealForm.role === 'seller' ? 'bg-white text-brand-600 shadow-sm' : 'text-surface-500 hover:text-surface-700'}`}
+                                >
+                                    I am Selling
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDealForm(prev => ({ ...prev, role: 'buyer' }))}
+                                    className={`py-2 text-[13px] font-bold rounded-lg transition-all ${dealForm.role === 'buyer' ? 'bg-white text-brand-600 shadow-sm' : 'text-surface-500 hover:text-surface-700'}`}
+                                >
+                                    I am Buying
+                                </button>
+                            </div>
+
+                            <div>
+                                <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Material</label>
+                                <input required placeholder="e.g. Steel Scrap" type="text" value={dealForm.material} onChange={e => setDealForm(prev => ({ ...prev, material: e.target.value }))} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-brand-400" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Amount / Volume</label>
+                                    <input required placeholder="e.g. 5" type="text" value={dealForm.amount} onChange={e => setDealForm(prev => ({ ...prev, amount: e.target.value }))} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-brand-400" />
+                                </div>
+                                <div>
+                                    <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Price Agreed</label>
+                                    <input required placeholder="e.g. 50000" type="text" value={dealForm.price} onChange={e => setDealForm(prev => ({ ...prev, price: e.target.value }))} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-brand-400" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Additional Notes</label>
+                                <textarea placeholder="Delivery terms, specifics..." rows={2} value={dealForm.notes} onChange={e => setDealForm(prev => ({ ...prev, notes: e.target.value }))} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-brand-400 resize-none" />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button type="button" onClick={() => setShowDraftModal(false)} className="flex-1 py-2.5 text-[13px] font-bold text-surface-600 bg-surface-50 border border-surface-200 hover:bg-surface-100 rounded-xl transition-colors">Cancel</button>
+                                <button type="submit" disabled={isSavingDraft} className="flex-1 py-2.5 text-[13px] font-bold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-colors shadow-sm shadow-brand-500/20 flex items-center justify-center gap-2">
+                                    {isSavingDraft ? <Loader className="animate-spin" size={16} /> : <FileEdit size={16} />}
+                                    {isSavingDraft ? 'Saving Draft...' : 'Save Draft'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {showDealModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/40 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-surface-200/60 overflow-hidden">
@@ -385,34 +508,70 @@ const Messages = () => {
                                 <X size={18} />
                             </button>
                         </div>
-                        <form onSubmit={(e) => {
+                        <form onSubmit={async (e) => {
                             e.preventDefault();
-                            const msgText = `**DEAL FINALIZED**\n• Material: ${dealForm.material}\n• Amount: ${dealForm.amount}\n• Price: ${dealForm.price}\n• Notes: ${dealForm.notes || 'N/A'}\n\nLet's arrange the logistics!`;
-                            setNewMessage(prev => prev ? prev + '\n\n' + msgText : msgText);
+                            if (!selectedPartner) return;
+
+                            setIsFinalizing(true);
+                            await finalizeDeal({
+                                partner_id: selectedPartner.partner_id,
+                                role: dealForm.role,
+                                material: dealForm.material,
+                                amount: parseFloat(dealForm.amount) || 0,
+                                price: parseFloat(dealForm.price.replace(/[^0-9.]/g, '')) || 0,
+                                notes: dealForm.notes,
+                                opportunity_id: searchParams.get('oppId') || undefined,
+                                transaction_id: draftId || undefined
+                            });
+
+                            setIsFinalizing(false);
                             setShowDealModal(false);
-                            setDealForm({ material: '', amount: '', price: '', notes: '' }); // Reset
+                            setDealForm({ material: '', amount: '', price: '', notes: '', role: 'seller' }); // Reset
+                            navigate('/app/deals');
                         }} className="p-6 space-y-4">
+
+                            {/* Role Selector */}
+                            <div className="grid grid-cols-2 gap-3 p-1 bg-surface-100 rounded-xl mb-4">
+                                <button
+                                    type="button"
+                                    disabled={true}
+                                    className={`py-2 text-[13px] font-bold rounded-lg transition-all ${dealForm.role === 'seller' ? 'bg-white text-brand-600 shadow-sm' : 'text-surface-400 opacity-50'}`}
+                                >
+                                    I am Selling
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={true}
+                                    className={`py-2 text-[13px] font-bold rounded-lg transition-all ${dealForm.role === 'buyer' ? 'bg-white text-brand-600 shadow-sm' : 'text-surface-400 opacity-50'}`}
+                                >
+                                    I am Buying
+                                </button>
+                            </div>
+
                             <div>
                                 <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Material</label>
-                                <input required placeholder="e.g. Steel Scrap" type="text" value={dealForm.material} onChange={e => setDealForm(prev => ({ ...prev, material: e.target.value }))} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-brand-400" />
+                                <input readOnly type="text" value={dealForm.material} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none text-surface-500" />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Amount / Volume</label>
-                                    <input required placeholder="e.g. 5 Tons" type="text" value={dealForm.amount} onChange={e => setDealForm(prev => ({ ...prev, amount: e.target.value }))} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-brand-400" />
+                                    <input readOnly type="text" value={dealForm.amount} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none text-surface-500" />
                                 </div>
                                 <div>
                                     <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Price Agreed</label>
-                                    <input required placeholder="e.g. ₹50,000" type="text" value={dealForm.price} onChange={e => setDealForm(prev => ({ ...prev, price: e.target.value }))} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-brand-400" />
+                                    <input readOnly type="text" value={dealForm.price} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none text-surface-500" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Additional Notes</label>
-                                <textarea placeholder="Delivery terms, specifics..." rows={2} value={dealForm.notes} onChange={e => setDealForm(prev => ({ ...prev, notes: e.target.value }))} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none focus:border-brand-400 resize-none" />
+                                <textarea readOnly rows={2} value={dealForm.notes} className="w-full bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] focus:outline-none resize-none text-surface-500" />
                             </div>
                             <div className="flex gap-3 pt-2">
                                 <button type="button" onClick={() => setShowDealModal(false)} className="flex-1 py-2.5 text-[13px] font-bold text-surface-600 bg-surface-50 border border-surface-200 hover:bg-surface-100 rounded-xl transition-colors">Cancel</button>
-                                <button type="submit" className="flex-1 py-2.5 text-[13px] font-bold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-colors shadow-sm shadow-brand-500/20">Draft Agreement</button>
+                                <button type="submit" disabled={isFinalizing} className="flex-1 py-2.5 text-[13px] font-bold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-colors shadow-sm shadow-brand-500/20 flex items-center justify-center gap-2">
+                                    {isFinalizing ? <Loader className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                                    {isFinalizing ? 'Finalizing...' : 'Confirm Deal'}
+                                </button>
                             </div>
                         </form>
                     </div>
