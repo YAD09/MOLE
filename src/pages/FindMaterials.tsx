@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     Search, MapPin, ChevronDown, Loader, ArrowRight, Sparkles,
     Package, Recycle, CheckCircle2, Leaf,
     ShieldCheck, Truck, Clock, Factory,
-    Filter, Layers, Send, X, AlertCircle
+    Filter, Layers, Send
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
-    createMaterialRequest, getAllWasteListings, sendOffer, getMyOpportunities,
+    createMaterialRequest, getAllWasteListings, getMyOpportunities,
     type WasteListingPublic, type OpportunityWithCounterparty
 } from '../lib/db';
 import { detectLocation } from '../lib/location';
@@ -77,8 +77,11 @@ const FindMaterials = () => {
     const [isSearching, setIsSearching] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const [animateResults, setAnimateResults] = useState(false);
-    const [matches, setMatches] = useState<WasteListingPublic[]>([]);
+    const [matches, setMatches] = useState<(WasteListingPublic & { distance_km?: number })[]>([]);
     const [sentOffers, setSentOffers] = useState<OpportunityWithCounterparty[]>([]);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 4;
 
     const [form, setForm] = useState<SourcingForm>({
         materialNeeded: '',
@@ -139,6 +142,7 @@ const FindMaterials = () => {
         setAnimateResults(false);
         setSearchError('');
         setMatches([]);
+        setCurrentPage(1);
 
         // 1. Save material request to Supabase
         const { error } = await createMaterialRequest({
@@ -162,7 +166,34 @@ const FindMaterials = () => {
         // Logic: Find waste_listings where waste_type matches material_needed
         try {
             const allListings = await getAllWasteListings();
-            const filtered = allListings.filter(l => l.waste_type === form.materialNeeded);
+
+            // Mock distance function since we don't have lat/long for all inputs
+            const calculateDistance = (loc1: string, loc2: string) => {
+                if (!loc1 || !loc2) return 999;
+                const l1 = loc1.toLowerCase();
+                const l2 = loc2.toLowerCase();
+                if (l1 === l2) return 0;
+                if (l1.includes(l2) || l2.includes(l1)) return 5;
+                let hash = 0;
+                const str = l1 < l2 ? l1 + l2 : l2 + l1;
+                for (let i = 0; i < str.length; i++) {
+                    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                    hash |= 0;
+                }
+                return Math.abs(hash % 150) + 10;
+            };
+
+            const maxDist = form.maxDistance ? parseFloat(form.maxDistance) : Infinity;
+
+            const filtered = allListings
+                .filter(l => l.waste_type === form.materialNeeded)
+                .map(l => {
+                    const dist = calculateDistance(form.location, l.listing_location || l.companies?.location || '');
+                    return { ...l, distance_km: dist };
+                })
+                .filter(l => l.distance_km <= maxDist)
+                .sort((a, b) => (a.distance_km || 0) - (b.distance_km || 0));
+
             setMatches(filtered);
         } catch (err) {
             console.error('[FindMaterials] matching error:', err);
@@ -177,6 +208,9 @@ const FindMaterials = () => {
     };
 
 
+
+    const totalPages = Math.ceil(matches.length / ITEMS_PER_PAGE);
+    const paginatedMatches = matches.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
     const inputClasses = "w-full bg-surface-50/80 border border-surface-200 rounded-xl px-4 py-3 text-[14px] text-surface-900 placeholder-surface-300 font-medium focus:outline-none focus:bg-white focus:border-brand-400 focus:ring-4 focus:ring-brand-500/8 transition-all";
     const selectClasses = `${inputClasses} appearance-none cursor-pointer`;
@@ -587,60 +621,109 @@ const FindMaterials = () => {
                                     </p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {matches.map(listing => (
-                                        <div key={listing.id} className="bg-white border border-surface-200 rounded-[24px] p-5 hover:shadow-xl hover:shadow-brand-500/2 transition-all group">
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-surface-50 flex items-center justify-center border border-surface-100 group-hover:bg-brand-50 group-hover:border-brand-200 transition-colors">
-                                                        <Package className="text-surface-400 group-hover:text-brand-600" size={20} />
-                                                    </div>
-                                                    <div>
-                                                        <h5 className="text-[14px] font-bold text-surface-900 capitalize leading-tight">
-                                                            {listing.companies?.company_name || 'Verified Supplier'}
-                                                        </h5>
-                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                            <MapPin size={11} className="text-brand-500" />
-                                                            <span className="text-[11px] font-medium text-surface-400 truncate max-w-[150px]">
+                                <>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        {paginatedMatches.map(listing => (
+                                            <div key={listing.id} className="bg-white border border-surface-200 rounded-[24px] p-5 hover:shadow-xl hover:shadow-brand-500/2 transition-all group">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-surface-50 flex items-center justify-center border border-surface-100 group-hover:bg-brand-50 group-hover:border-brand-200 transition-colors">
+                                                            <Package className="text-surface-400 group-hover:text-brand-600" size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h5 className="text-[14px] font-bold text-surface-900 capitalize leading-tight">
+                                                                {listing.companies?.company_name || 'Verified Supplier'}
+                                                            </h5>
+                                                            <div className="flex items-center gap-1.5 mt-1">
+                                                                <MapPin size={11} className="text-brand-500" />
+                                                                <span className="text-[11px] font-medium text-surface-400 truncate max-w-[150px]">
+                                                                    {listing.distance_km !== undefined ? `${listing.distance_km} km away` : (listing.listing_location || listing.companies?.location)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-[10px] text-surface-400 truncate max-w-[150px] mt-0.5">
                                                                 {listing.listing_location || listing.companies?.location}
-                                                            </span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[16px] font-black text-brand-600 leading-none">
-                                                        {listing.quantity} <span className="text-[11px] font-bold uppercase tracking-tighter opacity-70">{listing.unit}</span>
-                                                    </p>
-                                                    {listing.price_per_unit && (
-                                                        <p className="text-[12px] font-bold text-surface-900 mt-1">
-                                                            ₹{listing.price_per_unit}<span className="text-[10px] text-surface-400 font-medium tracking-tight">/{listing.unit}</span>
+                                                    <div className="text-right">
+                                                        <p className="text-[16px] font-black text-brand-600 leading-none">
+                                                            {listing.quantity} <span className="text-[11px] font-bold uppercase tracking-tighter opacity-70">{listing.unit}</span>
                                                         </p>
-                                                    )}
-                                                    <p className="text-[10px] font-bold text-surface-300 mt-1 uppercase tracking-widest">{listing.frequency}</p>
+                                                        {listing.price_per_unit && (
+                                                            <p className="text-[12px] font-bold text-surface-900 mt-1">
+                                                                ₹{listing.price_per_unit}<span className="text-[10px] text-surface-400 font-medium tracking-tight">/{listing.unit}</span>
+                                                            </p>
+                                                        )}
+                                                        <p className="text-[10px] font-bold text-surface-300 mt-1 uppercase tracking-widest">{listing.frequency}</p>
+                                                    </div>
                                                 </div>
+
+                                                <div className="flex flex-wrap gap-2 mb-4">
+                                                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-tight ${listing.hazard_level === 'non-hazardous'
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                        : 'bg-amber-50 text-amber-700 border-amber-100'
+                                                        }`}>
+                                                        {listing.hazard_level}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-surface-50 text-surface-500 border border-surface-100 uppercase tracking-tight">
+                                                        {listing.condition}
+                                                    </span>
+                                                </div>
+
+                                                <button
+                                                    className="w-full py-3 bg-surface-900 hover:bg-black text-white rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2 group-hover:shadow-lg group-hover:shadow-surface-900/10"
+                                                    onClick={() => navigate(`/app/messages?partnerId=${listing.company_id}`)}
+                                                >
+                                                    Chat with Seller <ArrowRight size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Google Style Pagination */}
+                                    {totalPages > 1 && (
+                                        <div className="flex flex-col items-center justify-center mt-10 mb-4 animate-fade-in">
+                                            <div className="flex items-end justify-center mb-1 select-none font-[Arial,sans-serif]">
+                                                <span className="text-[38px] font-bold text-surface-900 tracking-[-0.08em]">G</span>
+                                                {Array.from({ length: totalPages }).map((_, i) => (
+                                                    <span
+                                                        key={i + 1}
+                                                        onClick={() => setCurrentPage(i + 1)}
+                                                        className={`text-[38px] font-bold cursor-pointer transition-colors leading-[1.1] ${i + 1 === currentPage ? 'text-brand-500' : 'text-surface-900 hover:text-brand-400'}`}
+                                                    >
+                                                        o
+                                                    </span>
+                                                ))}
+                                                <span className="text-[38px] font-bold text-surface-900 tracking-[-0.02em]">gle</span>
+                                                {currentPage < totalPages && (
+                                                    <span onClick={() => setCurrentPage(p => p + 1)} className="text-[26px] mb-1.5 font-bold text-surface-400 ml-2 cursor-pointer hover:text-brand-500 transition-colors">
+                                                        ›
+                                                    </span>
+                                                )}
                                             </div>
 
-                                            <div className="flex flex-wrap gap-2 mb-4">
-                                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-tight ${listing.hazard_level === 'non-hazardous'
-                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                                    : 'bg-amber-50 text-amber-700 border-amber-100'
-                                                    }`}>
-                                                    {listing.hazard_level}
-                                                </span>
-                                                <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-surface-50 text-surface-500 border border-surface-100 uppercase tracking-tight">
-                                                    {listing.condition}
-                                                </span>
+                                            <div className="flex items-center justify-center gap-3">
+                                                {Array.from({ length: totalPages }).map((_, i) => (
+                                                    <button
+                                                        key={i + 1}
+                                                        onClick={() => setCurrentPage(i + 1)}
+                                                        className={`text-[14px] px-1 hover:underline ${i + 1 === currentPage ? 'text-surface-900 font-bold' : 'text-brand-600 font-medium'}`}
+                                                    >
+                                                        {i + 1}
+                                                    </button>
+                                                ))}
+                                                {currentPage < totalPages && (
+                                                    <button
+                                                        onClick={() => setCurrentPage(p => p + 1)}
+                                                        className="text-[14px] font-medium text-brand-600 hover:underline ml-3"
+                                                    >
+                                                        Next
+                                                    </button>
+                                                )}
                                             </div>
-
-                                            <button
-                                                className="w-full py-3 bg-surface-900 hover:bg-black text-white rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2 group-hover:shadow-lg group-hover:shadow-surface-900/10"
-                                                onClick={() => navigate(`/app/messages?partnerId=${listing.company_id}`)}
-                                            >
-                                                Chat with Seller <ArrowRight size={14} />
-                                            </button>
                                         </div>
-                                    ))}
-                                </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Lightbulb, Building2, Package, Search,
-    ChevronLeft, ChevronRight, MessageSquare, Send, X, AlertCircle, Loader, CheckCircle2
+    ChevronLeft, ChevronRight, MessageSquare, Send, X, AlertCircle, Loader
 } from 'lucide-react';
 import { getAllWasteListings, sendOffer, type WasteListingPublic } from '../lib/db';
 
@@ -11,143 +11,7 @@ const hazardColor = (h: string) =>
         ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
         : 'bg-amber-50 text-amber-600 border-amber-100';
 
-/* ───────── OFFER FORM MODAL ───────── */
-const OfferModal = ({ listing, onClose, onSuccess }: {
-    listing: WasteListingPublic;
-    onClose: () => void;
-    onSuccess: (id: string) => void;
-}) => {
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState('');
-    const [form, setForm] = useState({
-        material_to: '',
-        volume: String(listing.quantity),
-        frequency: 'one-time',
-        notes: ''
-    });
 
-    useEffect(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, []);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSubmitting(true);
-        setError('');
-
-        const { error: err } = await sendOffer({
-            waste_listing_id: listing.id,
-            counterparty_id: listing.company_id,
-            title: `Offer for ${listing.waste_type}`,
-            material_from: listing.waste_type,
-            material_to: form.material_to,
-            volume: form.volume,
-            frequency: form.frequency,
-            notes: form.notes
-        });
-
-        if (err) {
-            setError(err);
-            setSubmitting(false);
-        } else {
-            onSuccess(listing.id);
-            onClose();
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-24 bg-surface-900/40 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-surface-200/60 overflow-hidden">
-                <div className="px-6 py-4 border-b border-surface-100 flex items-center justify-between bg-surface-50/50">
-                    <div>
-                        <h3 className="text-[16px] font-bold text-surface-900">Send Resource Offer</h3>
-                        <p className="text-[12px] text-surface-500 font-medium">To: {listing.companies?.company_name}</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white rounded-xl transition-colors text-surface-400">
-                        <X size={18} />
-                    </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div className="bg-brand-50/50 border border-brand-100 rounded-xl p-3 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm text-brand-600 shrink-0">
-                            <Package size={20} />
-                        </div>
-                        <div>
-                            <p className="text-[12px] font-bold text-surface-900">{listing.waste_type}</p>
-                            <p className="text-[11px] text-surface-500 font-medium">Available: {listing.quantity} {listing.unit}</p>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Intended Use / Product</label>
-                        <input
-                            required
-                            type="text"
-                            placeholder="e.g. Recycled aggregate, Fuel component..."
-                            value={form.material_to}
-                            onChange={e => setForm(f => ({ ...f, material_to: e.target.value }))}
-                            className="w-full bg-white border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] text-surface-900 placeholder-surface-300 font-medium focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 transition-all"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Volume Needed</label>
-                            <input
-                                type="text"
-                                value={form.volume}
-                                onChange={e => setForm(f => ({ ...f, volume: e.target.value }))}
-                                className="w-full bg-white border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] text-surface-900 font-medium focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 transition-all"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Frequency</label>
-                            <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}
-                                className="w-full bg-white border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] text-surface-900 font-medium focus:outline-none focus:border-brand-400 transition-all">
-                                <option value="one-time">One-time</option>
-                                <option value="recurring">Recurring</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="quarterly">Quarterly</option>
-                                <option value="weekly">Weekly</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-[12px] font-bold text-surface-700 uppercase tracking-wide mb-1.5">Message / Notes</label>
-                        <textarea
-                            rows={3}
-                            placeholder="Describe your specific requirements, collection arrangements, quality standards..."
-                            value={form.notes}
-                            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                            className="w-full bg-white border border-surface-200 rounded-xl px-4 py-2.5 text-[13px] text-surface-900 placeholder-surface-300 font-medium focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 transition-all resize-none"
-                        />
-                    </div>
-
-                    {error && (
-                        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                            <AlertCircle size={14} className="text-red-500 shrink-0" />
-                            <p className="text-[13px] text-red-600 font-medium">{error}</p>
-                        </div>
-                    )}
-
-                    <div className="flex gap-3 pt-1">
-                        <button type="button" onClick={onClose}
-                            className="flex-1 py-2.5 text-[13px] font-bold text-surface-600 bg-surface-50 hover:bg-surface-100 border border-surface-200 rounded-xl transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" disabled={submitting}
-                            className="flex-1 py-2.5 text-[13px] font-bold text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-60 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-brand-500/20">
-                            {submitting ? <Loader size={14} className="animate-spin" /> : <Send size={14} />}
-                            {submitting ? 'Sending...' : 'Submit Offer'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
 
 const ITEMS_PER_PAGE = 6;
 

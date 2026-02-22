@@ -223,10 +223,7 @@ const ListWaste = () => {
         setUploadedFiles(fakeFiles);
     };
 
-    const handleEdit = (listing: WasteListing) => {
-        const fakeFiles = ['MSDS_Steel_Slag_2026.pdf', 'Lab_Composition_Report.xlsx'];
-        setUploadedFiles(fakeFiles);
-    };
+
 
     const inputClasses = "w-full bg-surface-50/80 border border-surface-200 rounded-xl px-4 py-3 text-[14px] text-surface-900 placeholder-surface-300 font-medium focus:outline-none focus:bg-white focus:border-brand-400 focus:ring-4 focus:ring-brand-500/8 transition-all";
     const selectClasses = `${inputClasses} appearance-none cursor-pointer`;

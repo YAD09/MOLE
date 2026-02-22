@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { BadgeCheck, ArrowRight, Truck, AlertTriangle, Leaf, DollarSign, CheckCircle2, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 

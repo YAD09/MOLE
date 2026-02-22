@@ -16,7 +16,9 @@ import {
     X,
     Clock,
     MessageSquare,
-    Orbit
+    Orbit,
+    TrendingUp,
+    CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -83,8 +85,10 @@ const Layout = () => {
                 <div className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar space-y-0.5">
                     <SidebarItem icon={LayoutDashboard} label="Dashboard" to="/app" />
                     <SidebarItem icon={ListPlus} label="List Waste" to="/app/list-waste" />
+                    <SidebarItem icon={TrendingUp} label="Waste Forecast" to="/app/forecast" />
                     <SidebarItem icon={Recycle} label="Find Materials" to="/app/find" />
                     <SidebarItem icon={MessageSquare} label="Messages" to="/app/messages" />
+                    <SidebarItem icon={CheckCircle2} label="My Deals" to="/app/deals" />
                     <SidebarItem icon={Lightbulb} label="Opportunities" to="/app/opportunities" badge="3" />
 
                     <SectionLabel>Analytics</SectionLabel>

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import ListWaste from './pages/ListWaste';
+import WasteForecastPage from './pages/WasteForecast';
 import AIProcessing from './pages/AIProcessing';
 import Matches from './pages/Matches';
 import AIChat from './pages/AIChat';
@@ -15,6 +16,7 @@ import Messages from './pages/Messages';
 import ImpactAnalytics from './pages/ImpactAnalytics';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import MyDeals from './pages/MyDeals';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -74,11 +76,13 @@ function App() {
                     <Route path="/app" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                         <Route index element={<Dashboard />} />
                         <Route path="list-waste" element={<ListWaste />} />
+                        <Route path="forecast" element={<WasteForecastPage />} />
                         <Route path="find" element={<FindMaterials />} />
                         <Route path="processing" element={<AIProcessing />} />
                         <Route path="matches" element={<Matches />} />
                         <Route path="chat" element={<AIChat />} />
                         <Route path="opportunities" element={<Opportunities />} />
+                        <Route path="deals" element={<MyDeals />} />
                         <Route path="network" element={<TradeHistory />} />
                         <Route path="messages" element={<Messages />} />
                         <Route path="analytics" element={<ImpactAnalytics />} />

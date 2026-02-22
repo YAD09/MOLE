@@ -33,6 +33,23 @@ export interface WasteListingPublic extends WasteListing {
     companies?: { company_name: string; location: string; industry_type: string };
 }
 
+export interface WasteForecast {
+    id: string;
+    company_id: string;
+    waste_type: string;
+    description?: string;
+    quantity: number;
+    unit: string;
+    available_from: string;
+    status: string;
+    created_at: string;
+}
+
+export interface WasteForecastPublic extends WasteForecast {
+    companies?: { company_name: string; location: string; industry_type: string };
+}
+
+
 export interface MaterialRequest {
     id: string;
     company_id: string;
@@ -726,6 +743,205 @@ export async function markMessagesAsRead(partner_id: string): Promise<boolean> {
         return false;
     }
     return true;
+}
+
+/* ═══════════════════════════════════
+   WASTE FORECASTS
+   ═══════════════════════════════════ */
+
+export async function getMyWasteForecasts(): Promise<WasteForecast[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    const { data, error } = await supabase
+        .from('waste_forecasts')
+        .select('*')
+        .eq('company_id', user.id)
+        .order('available_from', { ascending: true });
+    if (error) { console.error('[db] getMyWasteForecasts:', error.message); return []; }
+    return (data as WasteForecast[]) ?? [];
+}
+
+export async function getAllWasteForecasts(): Promise<WasteForecastPublic[]> {
+    const { data, error } = await supabase
+        .from('waste_forecasts')
+        .select('*, companies(company_name, location, industry_type)')
+        .order('available_from', { ascending: true });
+    
+    if (error) { console.error('[db] getAllWasteForecasts:', error.message); return []; }
+    return (data as WasteForecastPublic[]) ?? [];
+}
+
+export async function createWasteForecast(
+    payload: Omit<WasteForecast, 'id' | 'company_id' | 'created_at' | 'status'>
+): Promise<{ data: WasteForecast | null; error: string | null }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { data: null, error: 'Not authenticated' };
+    const { data, error } = await supabase
+        .from('waste_forecasts')
+        .insert({ company_id: user.id, ...payload, status: 'active' })
+        .select()
+        .single();
+    if (error) return { data: null, error: error.message };
+    return { data: data as WasteForecast, error: null };
+}
+
+export async function deleteWasteForecast(id: string): Promise<{ error: string | null }> {
+    const { error } = await supabase.from('waste_forecasts').delete().eq('id', id);
+    if (error) return { error: error.message };
+    return { error: null };
+}
+
+/**
+ * Finds material requests that match the given waste type.
+ * This is a simple implementation using ILIKE.
+ */
+export async function findMatchesForForecast(wasteType: string): Promise<MaterialRequest[]> {
+    const { data, error } = await supabase
+        .from('material_requests')
+        .select('*, companies(company_name, location, industry_type)')
+        .ilike('material_needed', `%${wasteType}%`);
+    
+    if (error) { console.error('[db] findMatchesForForecast:', error.message); return []; }
+    return (data as unknown as MaterialRequest[]) ?? [];
+}
+
+export interface Transaction {
+    id: string;
+    seller_id: string;
+    buyer_id: string;
+    material: string;
+    amount: number;
+    price: number;
+    notes?: string;
+    status: 'draft' | 'active' | 'completed' | 'cancelled';
+    stage: 'agreement' | 'payment_pending' | 'logistics' | 'delivery' | 'review';
+    created_at: string;
+    seller?: { company_name: string };
+    buyer?: { company_name: string };
+}
+
+export async function saveDraftDeal(payload: {
+    partner_id: string;
+    role: 'seller' | 'buyer';
+    material: string;
+    amount: number;
+    price: number;
+    notes?: string;
+    existing_id?: string;
+}): Promise<{ data: Transaction | null, error: string | null }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { data: null, error: 'Not authenticated' };
+
+    const seller_id = payload.role === 'seller' ? user.id : payload.partner_id;
+    const buyer_id = payload.role === 'buyer' ? user.id : payload.partner_id;
+
+    const dealData = {
+        seller_id,
+        buyer_id,
+        material: payload.material,
+        amount: payload.amount,
+        price: payload.price,
+        notes: payload.notes,
+        status: 'draft',
+        stage: 'agreement'
+    };
+
+    let query;
+    if (payload.existing_id) {
+        query = supabase.from('transactions').update(dealData).eq('id', payload.existing_id).select().single();
+    } else {
+        query = supabase.from('transactions').insert(dealData).select().single();
+    }
+
+    const { data, error } = await query;
+    if (error) return { data: null, error: error.message };
+    return { data: data as Transaction, error: null };
+}
+
+export async function getDraftDeal(partner_id: string): Promise<Transaction | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('status', 'draft')
+        .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`)
+        .or(`seller_id.eq.${partner_id},buyer_id.eq.${partner_id}`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching draft deal:', error);
+    }
+    
+    return data as Transaction || null;
+}
+
+export async function getMyDeals(): Promise<Transaction[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+            *,
+            seller:companies!seller_id(company_name),
+            buyer:companies!buyer_id(company_name)
+        `)
+        .neq('status', 'draft')
+        .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching deals:', error);
+        return [];
+    }
+
+    return data as any[];
+}
+
+export async function finalizeDeal(payload: {
+    partner_id: string;
+    role: 'seller' | 'buyer';
+    material: string;
+    amount: number;
+    price: number;
+    notes?: string;
+    opportunity_id?: string;
+    transaction_id?: string;
+}): Promise<{ error: string | null }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+
+    // Call the RPC function for atomic updates
+    const { error: rpcError } = await supabase.rpc('finalize_deal', {
+        p_partner_id: payload.partner_id,
+        p_role: payload.role,
+        p_material: payload.material,
+        p_amount: payload.amount,
+        p_price: payload.price,
+        p_notes: payload.notes,
+        p_opportunity_id: payload.opportunity_id || null,
+        p_transaction_id: payload.transaction_id || null
+    });
+
+    if (rpcError) {
+        console.error('finalize_deal RPC failed:', rpcError);
+        return { error: rpcError.message };
+    }
+
+    // Send Confirmation Message
+    const msgContent = `**DEAL FINALIZED** ✅\n• Role: ${payload.role.toUpperCase()}\n• Material: ${payload.material}\n• Amount: ${payload.amount}\n• Price: ${payload.price}\n• Notes: ${payload.notes || 'N/A'}\n\nTransaction recorded. Impact metrics updated. Check 'My Deals' for progress.`;
+    
+    await sendMessage({
+        receiver_id: payload.partner_id,
+        content: msgContent,
+        opportunity_id: payload.opportunity_id
+    });
+
+    return { error: null };
 }
 
 export async function createNetworkConnection(
